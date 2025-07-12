@@ -5,18 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cyberpunk Red Banking Log</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Tailwind CSS CDN for Inter font and basic styles -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, collection, addDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // Your Firebase Configuration - REPLACE WITH YOUR ACTUAL CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyBW9Z1gzsgdeK6_ou8PKe8Q1q6n-J9bT3s",
+            authDomain: "cyberbank-project.firebaseapp.com",
+            projectId: "cyberbank-project",
+            storageBucket: "cyberbank-project.firebasestorage.app",
+            messagingSenderId: "11046861851",
+            appId: "1:11046861851:web:c1a52f4b708241200bccbe"
+        };
+
+        // Initialize Firebase and export services
+        const app = initializeApp(firebaseConfig);
+        window.db = getFirestore(app);
+        window.auth = getAuth(app);
+
+        // Sign in anonymously on load
+        signInAnonymously(window.auth)
+            .then(() => {
+                console.log("Signed in anonymously to Firebase.");
+            })
+            .catch((error) => {
+                console.error("Error signing in anonymously:", error);
+            });
+    </script>
 </head>
 <body class="min-h-screen bg-gray-900 text-gray-100 font-inter p-4 flex flex-col items-center">
 
+    <!-- Custom Alert Message (Hidden by default) -->
     <div id="custom-alert" class="custom-alert hidden"></div>
 
+    <!-- Share Link Modal (Hidden by default) -->
+    <div id="share-modal" class="share-modal hidden">
+        <div class="share-modal-content">
+            <span class="close-button">&times;</span>
+            <h3 class="text-xl font-bold text-cyan-300 mb-4">Share Your Log</h3>
+            <p class="text-gray-300 mb-2">Copy this link to share your current log (read-only view):</p>
+            <input type="text" id="share-link-input" class="input-field w-full mb-4" readonly>
+            <button id="copy-share-link-button" class="cyber-button w-full">Copy Link</button>
+            <p id="read-only-message" class="text-red-400 mt-4 text-center hidden">
+                This is a read-only shared view. Your changes will not be saved.
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Container -->
     <div class="w-full max-w-4xl bg-gray-800 rounded-lg shadow-lg p-6 md:p-8 border border-gray-700 cyber-glow">
         <h1 class="text-4xl md:text-5xl font-bold text-center text-cyan-400 mb-8 tracking-wide">
             <span class="text-red-500">CYBER</span><span class="text-yellow-400">PUNK</span> Banking Log
         </h1>
 
+        <!-- Character Info Section -->
         <div class="flex flex-col md:flex-row items-center md:items-start gap-6 mb-8 p-4 bg-gray-700 rounded-lg border border-gray-600">
             <div class="flex-shrink-0 w-48 h-48 overflow-hidden border-4 border-cyan-500 shadow-md relative">
                 <img id="character-image" src="https://placehold.co/192x192/000000/FFFFFF?text=CHIP" alt="Character" class="w-full h-full object-cover">
@@ -39,6 +88,7 @@
                         <button id="cancel-edit-wallet-button" class="cyber-button-sell ml-2 px-3 py-1 text-sm">Cancel</button>
                     </div>
                 </p>
+                <!-- Input to change character name -->
                 <div class="mt-4">
                     <label for="character-name-input" class="block text-gray-400 text-sm font-bold mb-1">
                         Change Character Name:
@@ -50,6 +100,7 @@
                         placeholder="Enter new name"
                     />
                 </div>
+                <!-- Add Custom Amount Section -->
                 <div class="mt-4">
                     <button id="toggle-custom-amount-button" class="cyber-button px-4 py-2 text-sm">
                         Add/Subtract Custom Amount
@@ -65,13 +116,20 @@
                         <button id="subtract-custom-amount-button" class="cyber-button-sell px-3 py-1 text-sm flex-grow sm:flex-none">Subtract</button>
                     </div>
                 </div>
+                <!-- Share Button -->
+                <div class="mt-6">
+                    <button id="share-log-button" class="cyber-button px-6 py-3 text-lg w-full">Share Current Log</button>
+                </div>
             </div>
         </div>
 
+        <!-- Transaction Section (Purchase/Receive Funds) -->
         <div class="mb-8 p-4 bg-gray-700 rounded-lg border border-gray-600">
             <h3 class="text-2xl font-bold text-cyan-300 mb-4 text-center">Marketplace Actions</h3>
             <div class="flex flex-col md:flex-row gap-4 mb-4 items-center">
+                <!-- Item Selection Dropdown -->
                 <select id="item-select" class="input-field flex-grow w-full md:w-auto"></select>
+                <!-- Purchase and Receive Funds Buttons -->
                 <div class="flex gap-4 w-full md:w-auto justify-center">
                     <button id="purchase-button" class="cyber-button flex-grow">Purchase Item</button>
                     <button id="receive-funds-button" class="cyber-button-sell flex-grow">Receive Funds (Item Value)</button>
@@ -79,6 +137,7 @@
             </div>
         </div>
 
+        <!-- Inventory Section -->
         <div class="mb-8 p-4 bg-gray-700 rounded-lg border border-gray-600">
             <h3 class="text-2xl font-bold text-yellow-300 mb-4 text-center">Inventory</h3>
             <div id="inventory-list" class="max-h-60 overflow-y-auto border border-gray-600 rounded-md p-2 bg-gray-800">
@@ -86,6 +145,7 @@
             </div>
         </div>
 
+        <!-- Transaction Log Display -->
         <div class="p-4 bg-gray-700 rounded-lg border border-gray-600">
             <h3 class="text-2xl font-bold text-cyan-300 mb-4 text-center">Transaction History</h3>
             <div id="transaction-history" class="max-h-60 overflow-y-auto border border-gray-600 rounded-md p-2 bg-gray-800">
@@ -93,10 +153,12 @@
             </div>
         </div>
 
+        <!-- Item List Section (Your "Second Page" Data) -->
         <div class="mt-8 p-4 bg-gray-700 rounded-lg border border-gray-600">
             <h3 class="text-2xl font-bold text-yellow-300 mb-4 text-center">Available Items & Pricing</h3>
             <div id="item-list-display" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                </div>
+                <!-- Items will be injected here by JavaScript -->
+            </div>
         </div>
     </div>
 
