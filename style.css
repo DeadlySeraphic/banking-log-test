@@ -1,8 +1,12 @@
-/* Custom CSS for Cyberpunk Theme */
+/* Basic Reset & Body Styles */
 body {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
     font-family: 'Inter', sans-serif;
 }
 
+/* Custom Styles for Cyberpunk Theme */
 .cyber-glow {
     box-shadow: 0 0 8px rgba(0, 255, 255, 0.6), 0 0 16px rgba(0, 255, 255, 0.4);
     transition: all 0.3s ease-in-out;
@@ -59,6 +63,7 @@ body {
     box-shadow: 0 0 0 2px rgba(0, 255, 255, 0.3);
 }
 
+/* Custom Alert Message Styling */
 .custom-alert {
     position: fixed;
     top: 20px;
@@ -74,13 +79,13 @@ body {
     animation: fadeInOut 3s forwards;
 }
 
-.custom-alert.hidden {
-    display: none;
-}
-
 @keyframes fadeInOut {
     0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
     10% { opacity: 1; transform: translateX(-50%) translateY(0); }
     90% { opacity: 1; transform: translateX(-50%) translateY(0); }
     100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+}
+
+.custom-alert.hidden {
+    display: none;
 }
