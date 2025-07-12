@@ -1,0 +1,86 @@
+/* Custom CSS for Cyberpunk Theme */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+.cyber-glow {
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.6), 0 0 16px rgba(0, 255, 255, 0.4);
+    transition: all 0.3s ease-in-out;
+}
+
+.cyber-glow:hover {
+    box-shadow: 0 0 12px rgba(0, 255, 255, 0.8), 0 0 24px rgba(0, 255, 255, 0.6);
+}
+
+.cyber-button {
+    background-color: #00bcd4; /* Cyan */
+    color: #1a202c; /* Dark text */
+    font-weight: bold;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.2s ease-in-out;
+    border: 2px solid #00bcd4;
+}
+
+.cyber-button:hover {
+    background-color: #00a3b3; /* Darker cyan */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 255, 255, 0.4);
+}
+
+.cyber-button-sell {
+    background-color: #ef4444; /* Red */
+    color: #1a202c; /* Dark text */
+    font-weight: bold;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.2s ease-in-out;
+    border: 2px solid #ef4444;
+}
+
+.cyber-button-sell:hover {
+    background-color: #dc2626; /* Darker red */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
+}
+
+.input-field {
+    background-color: #2d3748; /* Darker blue-gray */
+    border: 1px solid #4a5568; /* Gray border */
+    color: #e2e8f0; /* Light text */
+    border-radius: 0.5rem;
+    padding: 0.5rem 1rem;
+    transition: border-color 0.2s ease-in-out;
+}
+
+.input-field:focus {
+    outline: none;
+    border-color: #00bcd4; /* Cyan focus */
+    box-shadow: 0 0 0 2px rgba(0, 255, 255, 0.3);
+}
+
+.custom-alert {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #00bcd4;
+    color: #1a202c;
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 15px rgba(0, 255, 255, 0.6);
+    z-index: 1000;
+    opacity: 0;
+    animation: fadeInOut 3s forwards;
+}
+
+.custom-alert.hidden {
+    display: none;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+    10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+}
