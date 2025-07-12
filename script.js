@@ -1,3 +1,10 @@
+// Ensure Firebase services are available globally from index.html script
+const db = window.db;
+const auth = window.auth;
+const { collection, addDoc, doc, getDoc } = firebase.firestore;
+const { signInAnonymously } = firebase.auth;
+
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- DOM Elements ---
     const characterNameDisplay = document.getElementById('character-name-display');
@@ -28,6 +35,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const imageFileInput = document.getElementById('image-file-input');
     const changeImageButton = document.getElementById('change-image-button');
 
+    // Share Modal Elements
+    const shareLogButton = document.getElementById('share-log-button');
+    const shareModal = document.getElementById('share-modal');
+    const shareLinkInput = document.getElementById('share-link-input');
+    const copyShareLinkButton = document.getElementById('copy-share-link-button');
+    const closeModalButton = shareModal.querySelector('.close-button');
+    const readOnlyMessage = document.getElementById('read-only-message');
+
+
     // --- Data (initialized from localStorage or defaults) ---
     let characterName = localStorage.getItem('characterName') || "Vash the Stampede";
     let walletBalance = parseInt(localStorage.getItem('walletBalance') || 2500);
@@ -53,6 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 15, name: "Vehicle: Thorton Galena", price: 10000, type: "Vehicle" },
     ];
 
+    let isReadOnlyMode = false; // Flag for read-only mode
+
     // --- Helper Functions ---
 
     function saveState() {
@@ -71,11 +89,26 @@ document.addEventListener('DOMContentLoaded', () => {
         renderInventory();
         renderTransactions();
         renderItemsList();
+
+        // Apply read-only mode if active
+        if (isReadOnlyMode) {
+            document.body.classList.add('read-only-mode');
+            readOnlyMessage.classList.remove('hidden');
+        } else {
+            document.body.classList.remove('read-only-mode');
+            readOnlyMessage.classList.add('hidden');
+        }
     }
 
     function showCustomAlert(message) {
         customAlert.textContent = message;
         customAlert.classList.remove('hidden');
+        customAlert.style.opacity = '0'; // Reset opacity for animation
+        customAlert.style.animation = 'none'; // Reset animation
+        customAlert.offsetHeight; // Trigger reflow
+        customAlert.style.animation = null; // Re-enable animation
+        customAlert.style.animation = 'fadeInOut 3s forwards';
+
         setTimeout(() => {
             customAlert.classList.add('hidden');
         }, 3000); // Hide after 3 seconds
@@ -104,23 +137,26 @@ document.addEventListener('DOMContentLoaded', () => {
                             min="0"
                             class="input-field w-16 text-center text-sm inventory-qty-input"
                             data-item-id="${item.id}"
+                            ${isReadOnlyMode ? 'disabled' : ''}
                         />
-                        <button class="cyber-button px-3 py-1 text-xs use-item-button" data-item-id="${item.id}">Use</button>
-                        <button class="cyber-button-sell px-3 py-1 text-xs sell-item-button" data-item-id="${item.id}">Sell</button>
+                        <button class="cyber-button px-3 py-1 text-xs use-item-button" data-item-id="${item.id}" ${isReadOnlyMode ? 'disabled' : ''}>Use</button>
+                        <button class="cyber-button-sell px-3 py-1 text-xs sell-item-button" data-item-id="${item.id}" ${isReadOnlyMode ? 'disabled' : ''}>Sell</button>
                     </div>
                 `;
                 inventoryList.appendChild(itemDiv);
             });
-            // Add event listeners for new buttons/inputs
-            inventoryList.querySelectorAll('.use-item-button').forEach(button => {
-                button.addEventListener('click', (e) => handleUseItem(parseInt(e.target.dataset.itemId)));
-            });
-            inventoryList.querySelectorAll('.sell-item-button').forEach(button => {
-                button.addEventListener('click', (e) => handleSellInventoryItem(parseInt(e.target.dataset.itemId)));
-            });
-            inventoryList.querySelectorAll('.inventory-qty-input').forEach(input => {
-                input.addEventListener('change', (e) => handleInventoryQuantityChange(parseInt(e.target.dataset.itemId), e.target.value));
-            });
+            // Add event listeners for new buttons/inputs (only if not in read-only mode)
+            if (!isReadOnlyMode) {
+                inventoryList.querySelectorAll('.use-item-button').forEach(button => {
+                    button.addEventListener('click', (e) => handleUseItem(parseInt(e.target.dataset.itemId)));
+                });
+                inventoryList.querySelectorAll('.sell-item-button').forEach(button => {
+                    button.addEventListener('click', (e) => handleSellInventoryItem(parseInt(e.target.dataset.itemId)));
+                });
+                inventoryList.querySelectorAll('.inventory-qty-input').forEach(input => {
+                    input.addEventListener('change', (e) => handleInventoryQuantityChange(parseInt(e.target.dataset.itemId), e.target.value));
+                });
+            }
         }
     }
 
@@ -179,232 +215,271 @@ document.addEventListener('DOMContentLoaded', () => {
         if (itemSelect.value === '' && itemsData.length > 0) {
             itemSelect.value = itemsData[0].id;
         }
+        itemSelect.disabled = isReadOnlyMode; // Disable if read-only
     }
 
     // --- Event Handlers ---
 
-    characterNameInput.addEventListener('input', (e) => {
-        characterName = e.target.value;
-        saveState();
-        updateUI(); // Update display immediately
-    });
-
-    editWalletButton.addEventListener('click', () => {
-        editWalletButton.classList.add('hidden');
-        editWalletControls.classList.remove('hidden');
-        tempWalletBalanceInput.value = walletBalance;
-    });
-
-    saveWalletButton.addEventListener('click', () => {
-        const newBalance = parseInt(tempWalletBalanceInput.value);
-        if (!isNaN(newBalance)) {
-            const amountChange = newBalance - walletBalance; // Calculate difference for transaction log
-            walletBalance = newBalance;
-            transactions.push({
-                type: "Wallet Edited",
-                name: "Direct adjustment",
-                amount: amountChange,
-                timestamp: new Date().toLocaleString()
-            });
-            showCustomAlert(`Wallet balance updated to €$ ${newBalance.toLocaleString()}`);
-        } else {
-            showCustomAlert("Invalid amount entered for wallet balance.");
-        }
-        editWalletButton.classList.remove('hidden');
-        editWalletControls.classList.add('hidden');
-        saveState();
-        updateUI();
-    });
-
-    cancelEditWalletButton.addEventListener('click', () => {
-        editWalletButton.classList.remove('hidden');
-        editWalletControls.classList.add('hidden');
-        // No need to save state if cancelled, just revert UI
-        updateUI();
-    });
-
-    toggleCustomAmountButton.addEventListener('click', () => {
-        if (customAmountControls.classList.contains('hidden')) {
-            customAmountControls.classList.remove('hidden');
-            toggleCustomAmountButton.textContent = "Hide Custom Amount";
-        } else {
-            customAmountControls.classList.add('hidden');
-            toggleCustomAmountButton.textContent = "Add/Subtract Custom Amount";
-            customAmountInput.value = ''; // Clear input when hiding
-        }
-    });
-
-    customAmountInput.addEventListener('input', (e) => {
-        const value = e.target.value;
-        if (value === '' || /^\d+$/.test(value)) {
-            // Valid input (empty or digits)
-        } else {
-            e.target.value = customAmountInput.value.replace(/[^0-9]/g, ''); // Remove non-digits
-        }
-    });
-
-    addCustomAmountButton.addEventListener('click', () => {
-        const amount = parseInt(customAmountInput.value, 10);
-        if (!isNaN(amount) && amount > 0) {
-            walletBalance += amount;
-            transactions.push({
-                type: "Added Custom Funds",
-                name: "Direct deposit",
-                amount: amount,
-                timestamp: new Date().toLocaleString()
-            });
-            showCustomAlert(`Added €$ ${amount.toLocaleString()} to wallet.`);
-            customAmountInput.value = '';
-            customAmountControls.classList.add('hidden');
-            toggleCustomAmountButton.textContent = "Add/Subtract Custom Amount";
+    // Only attach event listeners if not in read-only mode
+    if (!isReadOnlyMode) {
+        characterNameInput.addEventListener('input', (e) => {
+            characterName = e.target.value;
             saveState();
             updateUI();
-        } else {
-            showCustomAlert("Please enter a valid positive amount to add.");
-        }
-    });
+        });
 
-    subtractCustomAmountButton.addEventListener('click', () => {
-        const amount = parseInt(customAmountInput.value, 10);
-        if (!isNaN(amount) && amount > 0) {
-            walletBalance -= amount;
-            transactions.push({
-                type: "Subtracted Custom Funds",
-                name: "Direct withdrawal",
-                amount: -amount, // Negative for subtraction
-                timestamp: new Date().toLocaleString()
-            });
-            showCustomAlert(`Subtracted €$ ${amount.toLocaleString()} from wallet.`);
-            customAmountInput.value = '';
-            customAmountControls.classList.add('hidden');
-            toggleCustomAmountButton.textContent = "Add/Subtract Custom Amount";
-            saveState();
-            updateUI();
-        } else {
-            showCustomAlert("Please enter a valid positive amount to subtract.");
-        }
-    });
+        editWalletButton.addEventListener('click', () => {
+            editWalletButton.classList.add('hidden');
+            editWalletControls.classList.remove('hidden');
+            tempWalletBalanceInput.value = walletBalance;
+        });
 
-    purchaseButton.addEventListener('click', () => {
-        const selectedItemId = parseInt(itemSelect.value);
-        const item = itemsData.find(i => i.id === selectedItemId);
-        if (item) {
-            if (walletBalance >= item.price) {
-                walletBalance -= item.price;
-
-                const existingItemIndex = inventory.findIndex(invItem => invItem.id === item.id);
-                if (existingItemIndex > -1) {
-                    inventory[existingItemIndex].quantity += 1;
-                } else {
-                    inventory.push({ ...item, quantity: 1 });
-                }
-
+        saveWalletButton.addEventListener('click', () => {
+            const newBalance = parseInt(tempWalletBalanceInput.value);
+            if (!isNaN(newBalance)) {
+                const amountChange = newBalance - walletBalance;
+                walletBalance = newBalance;
                 transactions.push({
-                    type: "Purchased",
+                    type: "Wallet Edited",
+                    name: "Direct adjustment",
+                    amount: amountChange,
+                    timestamp: new Date().toLocaleString()
+                });
+                showCustomAlert(`Wallet balance updated to €$ ${newBalance.toLocaleString()}`);
+            } else {
+                showCustomAlert("Invalid amount entered for wallet balance.");
+            }
+            editWalletButton.classList.remove('hidden');
+            editWalletControls.classList.add('hidden');
+            saveState();
+            updateUI();
+        });
+
+        cancelEditWalletButton.addEventListener('click', () => {
+            editWalletButton.classList.remove('hidden');
+            editWalletControls.classList.add('hidden');
+            updateUI();
+        });
+
+        toggleCustomAmountButton.addEventListener('click', () => {
+            if (customAmountControls.classList.contains('hidden')) {
+                customAmountControls.classList.remove('hidden');
+                toggleCustomAmountButton.textContent = "Hide Custom Amount";
+            } else {
+                customAmountControls.classList.add('hidden');
+                toggleCustomAmountButton.textContent = "Add/Subtract Custom Amount";
+                customAmountInput.value = '';
+            }
+        });
+
+        customAmountInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (value === '' || /^\d+$/.test(value)) {
+                // Valid input (empty or digits)
+            } else {
+                e.target.value = e.target.value.replace(/[^0-9]/g, ''); // Remove non-digits
+            }
+        });
+
+        addCustomAmountButton.addEventListener('click', () => {
+            const amount = parseInt(customAmountInput.value, 10);
+            if (!isNaN(amount) && amount > 0) {
+                walletBalance += amount;
+                transactions.push({
+                    type: "Added Custom Funds",
+                    name: "Direct deposit",
+                    amount: amount,
+                    timestamp: new Date().toLocaleString()
+                });
+                showCustomAlert(`Added €$ ${amount.toLocaleString()} to wallet.`);
+                customAmountInput.value = '';
+                customAmountControls.classList.add('hidden');
+                toggleCustomAmountButton.textContent = "Add/Subtract Custom Amount";
+                saveState();
+                updateUI();
+            } else {
+                showCustomAlert("Please enter a valid positive amount to add.");
+            }
+        });
+
+        subtractCustomAmountButton.addEventListener('click', () => {
+            const amount = parseInt(customAmountInput.value, 10);
+            if (!isNaN(amount) && amount > 0) {
+                walletBalance -= amount;
+                transactions.push({
+                    type: "Subtracted Custom Funds",
+                    name: "Direct withdrawal",
+                    amount: -amount,
+                    timestamp: new Date().toLocaleString()
+                });
+                showCustomAlert(`Subtracted €$ ${amount.toLocaleString()} from wallet.`);
+                customAmountInput.value = '';
+                customAmountControls.classList.add('hidden');
+                toggleCustomAmountButton.textContent = "Add/Subtract Custom Amount";
+                saveState();
+                updateUI();
+            } else {
+                showCustomAlert("Please enter a valid positive amount to subtract.");
+            }
+        });
+
+        purchaseButton.addEventListener('click', () => {
+            const selectedItemId = parseInt(itemSelect.value);
+            const item = itemsData.find(i => i.id === selectedItemId);
+            if (item) {
+                if (walletBalance >= item.price) {
+                    walletBalance -= item.price;
+
+                    const existingItemIndex = inventory.findIndex(invItem => invItem.id === item.id);
+                    if (existingItemIndex > -1) {
+                        inventory[existingItemIndex].quantity += 1;
+                    } else {
+                        inventory.push({ ...item, quantity: 1 });
+                    }
+
+                    transactions.push({
+                        type: "Purchased",
+                        name: item.name,
+                        amount: item.price,
+                        timestamp: new Date().toLocaleString()
+                    });
+                    showCustomAlert(`Purchased ${item.name} for €$ ${item.price.toLocaleString()}`);
+                } else {
+                    showCustomAlert("Insufficient Eurodollars to purchase this item!");
+                }
+            }
+            saveState();
+            updateUI();
+        });
+
+        receiveFundsButton.addEventListener('click', () => {
+            const selectedItemId = parseInt(itemSelect.value);
+            const item = itemsData.find(i => i.id === selectedItemId);
+            if (item) {
+                walletBalance += item.price;
+                transactions.push({
+                    type: "Received Funds (Item Value)",
                     name: item.name,
                     amount: item.price,
                     timestamp: new Date().toLocaleString()
                 });
-                showCustomAlert(`Purchased ${item.name} for €$ ${item.price.toLocaleString()}`);
-            } else {
-                showCustomAlert("Insufficient Eurodollars to purchase this item!");
+                showCustomAlert(`Received €$ ${item.price.toLocaleString()} for ${item.name}`);
             }
-        }
-        saveState();
-        updateUI();
-    });
+            saveState();
+            updateUI();
+        });
 
-    receiveFundsButton.addEventListener('click', () => {
-        const selectedItemId = parseInt(itemSelect.value);
-        const item = itemsData.find(i => i.id === selectedItemId);
-        if (item) {
-            walletBalance += item.price;
-            transactions.push({
-                type: "Received Funds (Item Value)",
-                name: item.name,
-                amount: item.price,
-                timestamp: new Date().toLocaleString()
-            });
-            showCustomAlert(`Received €$ ${item.price.toLocaleString()} for ${item.name}`);
-        }
-        saveState();
-        updateUI();
-    });
+        // Character Image Handlers
+        changeImageButton.addEventListener('click', () => {
+            imageFileInput.click(); // Trigger click on hidden file input
+        });
 
-    function handleUseItem(itemId) {
-        const itemIndex = inventory.findIndex(item => item.id === itemId);
-        if (itemIndex > -1) {
-            const usedItem = inventory[itemIndex];
-            usedItem.quantity -= 1;
-            if (usedItem.quantity <= 0) {
-                inventory.splice(itemIndex, 1); // Remove if quantity drops to 0
+        imageFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    currentCharacterImage = reader.result; // Save Base64 string
+                    saveState();
+                    updateUI();
+                    showCustomAlert("Character image updated!");
+                };
+                reader.readAsDataURL(file); // Read file as Base64
             }
-            transactions.push({
-                type: "Used Item",
-                name: usedItem.name,
-                amount: 0, // No monetary change for 'use'
-                timestamp: new Date().toLocaleString()
-            });
-            showCustomAlert(`Used one ${usedItem.name}`);
-        }
-        saveState();
-        updateUI();
-    }
+        });
 
-    function handleSellInventoryItem(itemId) {
-        const itemIndex = inventory.findIndex(item => item.id === itemId);
-        if (itemIndex > -1) {
-            const soldItem = inventory[itemIndex];
-            walletBalance += soldItem.price;
-            soldItem.quantity -= 1;
-            if (soldItem.quantity <= 0) {
-                inventory.splice(itemIndex, 1); // Remove if quantity drops to 0
+        // Share Log Button
+        shareLogButton.addEventListener('click', async () => {
+            if (!auth.currentUser) {
+                showCustomAlert("Please wait, signing in to Firebase...");
+                await signInAnonymously(auth); // Ensure user is authenticated
             }
-            transactions.push({
-                type: "Sold Item",
-                name: soldItem.name,
-                amount: soldItem.price,
-                timestamp: new Date().toLocaleString()
-            });
-            showCustomAlert(`Sold one ${soldItem.name} for €$ ${soldItem.price.toLocaleString()}`);
-        }
-        saveState();
-        updateUI();
-    }
 
-    function handleInventoryQuantityChange(itemId, newQuantity) {
-        const quantity = parseInt(newQuantity, 10);
-        const itemIndex = inventory.findIndex(item => item.id === itemId);
-        if (itemIndex > -1 && !isNaN(quantity) && quantity >= 0) {
-            inventory[itemIndex].quantity = quantity;
-            if (inventory[itemIndex].quantity === 0) {
-                inventory.splice(itemIndex, 1); // Remove if quantity becomes 0
-            }
-        }
-        saveState();
-        updateUI();
-    }
-
-    // Character Image Handlers
-    changeImageButton.addEventListener('click', () => {
-        imageFileInput.click(); // Trigger click on hidden file input
-    });
-
-    imageFileInput.addEventListener('change', (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                currentCharacterImage = reader.result; // Save Base64 string
-                saveState();
-                updateUI();
-                showCustomAlert("Character image updated!");
+            const logData = {
+                characterName: characterName,
+                walletBalance: walletBalance,
+                inventory: inventory,
+                transactions: transactions,
+                characterImage: currentCharacterImage,
+                timestamp: new Date().toISOString(),
+                sharedBy: auth.currentUser ? auth.currentUser.uid : 'anonymous'
             };
-            reader.readAsDataURL(file); // Read file as Base64
-        }
-    });
 
-    // --- Initial Load ---
-    populateItemSelect();
-    updateUI(); // Initial render of all elements based on loaded state
+            try {
+                const docRef = await addDoc(collection(db, "sharedLogs"), logData);
+                const shareUrl = `${window.location.origin}${window.location.pathname}?shareId=${docRef.id}`;
+                shareLinkInput.value = shareUrl;
+                shareModal.classList.remove('hidden');
+                shareLinkInput.select(); // Select the text for easy copying
+                showCustomAlert("Log shared successfully!");
+            } catch (error) {
+                console.error("Error sharing log:", error);
+                showCustomAlert("Failed to share log. Please try again.");
+            }
+        });
+
+        copyShareLinkButton.addEventListener('click', () => {
+            shareLinkInput.select();
+            document.execCommand('copy'); // Fallback for older browsers/iframes
+            showCustomAlert("Link copied to clipboard!");
+        });
+
+        closeModalButton.addEventListener('click', () => {
+            shareModal.classList.add('hidden');
+        });
+
+    } // End of !isReadOnlyMode block
+
+    // --- Initial Load Logic ---
+
+    // Check URL for shareId to determine mode
+    const urlParams = new URLSearchParams(window.location.search);
+    const shareId = urlParams.get('shareId');
+
+    if (shareId) {
+        isReadOnlyMode = true;
+        // Disable all interactive elements immediately
+        document.body.classList.add('read-only-mode');
+        characterNameInput.disabled = true;
+        editWalletButton.disabled = true;
+        toggleCustomAmountButton.disabled = true;
+        shareLogButton.disabled = true;
+        purchaseButton.disabled = true;
+        receiveFundsButton.disabled = true;
+        changeImageButton.disabled = true;
+        itemSelect.disabled = true;
+
+
+        // Fetch shared data from Firestore
+        const docRef = doc(db, "sharedLogs", shareId);
+        getDoc(docRef).then((docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                characterName = data.characterName;
+                walletBalance = data.walletBalance;
+                inventory = data.inventory || [];
+                transactions = data.transactions || [];
+                currentCharacterImage = data.characterImage || "https://placehold.co/192x192/000000/FFFFFF?text=CHIP";
+                updateUI();
+                showCustomAlert("Loaded shared log (Read-Only)");
+            } else {
+                showCustomAlert("Shared log not found.");
+                // Fallback to local storage if shared log not found
+                isReadOnlyMode = false;
+                updateUI();
+            }
+        }).catch((error) => {
+            console.error("Error fetching shared log:", error);
+            showCustomAlert("Error loading shared log.");
+            // Fallback to local storage on error
+            isReadOnlyMode = false;
+            updateUI();
+        });
+
+    } else {
+        // Normal mode: load from local storage
+        updateUI();
+    }
+
+    populateItemSelect(); // Always populate the select dropdown
 });
